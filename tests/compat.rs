@@ -72,6 +72,30 @@ fn grouped_matches_golden() {
     assert_close(&run(Some(&golden("groups.tsv"))), &expected, "grouped");
 }
 
+/// A non-finite embedding coordinate (`inf`/`nan`, both valid `f64::parse`)
+/// poisons the covariance into a non-finite Cholesky. scipy raises a loud
+/// `ValueError` there ("array must not contain infs or NaNs"); we must match
+/// that by exiting non-zero rather than emitting a column of NaN densities.
+#[test]
+fn nonfinite_coordinate_errors_loudly() {
+    let out = Command::new(bin())
+        .args([
+            "--embedding",
+            golden("embedding_nonfinite.tsv").to_str().unwrap(),
+        ])
+        .output()
+        .expect("run binary");
+    assert!(
+        !out.status.success(),
+        "expected non-zero exit on non-finite coordinate"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("non-finite"),
+        "expected a non-finite diagnostic, got: {stderr}"
+    );
+}
+
 /// Live differential against scanpy if importable (or via SCANPY_PYTHON).
 /// Loud-skip otherwise so CI stays oracle-free.
 #[test]

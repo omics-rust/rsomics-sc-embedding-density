@@ -27,6 +27,14 @@ pub fn read_embedding<R: BufRead>(r: R) -> Result<Embedding> {
         };
         match (a.parse::<f64>(), b.parse::<f64>()) {
             (Ok(a), Ok(b)) => {
+                // `inf`/`nan` parse as valid f64 but poison the covariance into a
+                // non-finite Cholesky; scipy raises there, so we reject up front.
+                if !a.is_finite() || !b.is_finite() {
+                    return Err(RsomicsError::InvalidInput(format!(
+                        "embedding line {}: non-finite coordinate",
+                        lineno + 1
+                    )));
+                }
                 x.push(a);
                 y.push(b);
             }
@@ -64,4 +72,32 @@ pub fn read_groups<R: BufRead>(r: R, n: usize) -> Result<Vec<String>> {
         )));
     }
     Ok(g)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn read(s: &str) -> Result<Embedding> {
+        read_embedding(std::io::Cursor::new(s))
+    }
+
+    #[test]
+    fn rejects_inf_and_nan() {
+        for bad in ["inf\t0.5", "-inf 0.5", "0.5 nan", "0.5\tInfinity"] {
+            let src = format!("0.1 0.2\n0.3 0.4\n{bad}\n");
+            let msg = match read(&src) {
+                Ok(_) => panic!("{bad}: accepted a non-finite coordinate"),
+                Err(e) => format!("{e}"),
+            };
+            assert!(msg.contains("non-finite"), "{bad}: {msg}");
+        }
+    }
+
+    #[test]
+    fn accepts_finite() {
+        let emb = read("0.1 0.2\n0.3 0.4\n").unwrap();
+        assert_eq!(emb.x, vec![0.1, 0.3]);
+        assert_eq!(emb.y, vec![0.2, 0.4]);
+    }
 }

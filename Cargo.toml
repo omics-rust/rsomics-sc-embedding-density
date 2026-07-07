@@ -1,6 +1,6 @@
 [package]
 name = "rsomics-sc-embedding-density"
-version = "0.1.0"
+version = "0.1.1"
 description = "Per-group Gaussian-KDE cell density on a 2D embedding, min-max normalized to [0,1] — scanpy tl.embedding_density equivalent, value-exact, rayon-parallel"
 edition = "2024"
 rust-version = "1.91"
